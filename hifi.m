@@ -157,5 +157,5 @@ end
 % filter with a certain cutoff frequency and adjusting the passband edge frequency - 
 % it cannot do. This is done in the while loop above, by sequentially adjusting 
 % the value of wp until wn corresponds to the desired cutoff frequency (with a 
-% certain accuracy). 
+% certain accuracy).    
 
