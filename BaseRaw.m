@@ -67,7 +67,7 @@ classdef BaseRaw < handle
                 begin = (time_window*obj.fs - noverlap*obj.fs) * (j-1) + 1;
                 stop = time_window*obj.fs + ...
                     (time_window*obj.fs - noverlap*obj.fs) * (j-1) + 1;
-
+                
                 powers = obj.sum_power_segment((begin:stop), lfreq, hfreq);
                 matrix(j, :) = powers;
             end
@@ -86,10 +86,17 @@ classdef BaseRaw < handle
         function r = sum_power_segment(obj, segment, l_freq, h_freq)
             transposed = obj.data';
             % segment in datapoints as ``double``
-            [psd_window, freq_window] = pwelch(transposed(segment, :), ...
+            art_mat = abs(transposed(segment,:)) > 100;
+            art_vec = ~any(art_mat);
+            psd_window = NaN(129,64);
+            freq_window = NaN(129,1);
+            r = NaN(1,64);
+            if sum(art_vec) > 0
+            [psd_window(:,art_vec), freq_window] = pwelch(transposed(segment, art_vec), ...
                 [],[],256,obj.fs);
             
             r = sum_freq_band(psd_window, freq_window, l_freq, h_freq);
+            end
         end
         function crop(obj, tmin, tmax)
             arguments
