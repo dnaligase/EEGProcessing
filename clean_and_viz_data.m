@@ -1,7 +1,4 @@
 % initialize EEGLAB variables
-if ~exist("ALLEEG", "var")
-    eeglab
-end
 
 load ch_names.mat
 fnames = dir("**/*_eyesclosed_*.hdf5");
@@ -27,7 +24,7 @@ for i = length(fnames)
 
     EEG = pop_importdata('dataformat','array','nbchan',64,'subject',patientName(end),'data','data', ...
         'srate',250,'pnts',0,'xmin',0, ...
-        'chanlocs','/Volumes/EXTSTORAGE/Labrotation/64_channel.ced');
+        'chanlocs','64_channel.ced');
     EEG = eeg_checkset( EEG );
     EEG = pop_clean_rawdata(EEG, 'FlatlineCriterion','off', ...
         'ChannelCriterion','off','LineNoiseCriterion','off', ...

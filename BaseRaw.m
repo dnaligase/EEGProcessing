@@ -14,6 +14,7 @@ classdef BaseRaw < handle
     end
     properties (Hidden = true)
         time_as_index
+        id = 1
     end
 
     methods
@@ -26,9 +27,16 @@ classdef BaseRaw < handle
             if nargin >= 1
                 obj.data = EEG.data(picks, :);
                 obj.fs = EEG.srate;
-                obj.subject = EEG.subject;
 
-                if isempty(EEG.times)
+                if  ~isfield(EEG, 'subject') || isempty(EEG.subject)
+                    obj.subject = string(obj.id);
+                    increment_id = @(x) x + 1;
+                    obj.id = increment_id(obj.id);
+                else
+                    obj.subject = EEG.subject;
+                end
+
+                if  ~isfield(EEG, 'times') || isempty(EEG.times)
                     obj.times = obj.create_times();
                 else
                     % convert EEGLAB times to ms
@@ -36,7 +44,7 @@ classdef BaseRaw < handle
                 end
 
                 [obj.psd, obj.freq] = pwelch(obj.data',[],[],256,obj.fs);
-                if ~isempty(EEG.chanlocs)
+                if isfield(EEG, 'chanlocs')
                     obj.chanlocs = EEG.chanlocs;
                 else
                     obj.chanlocs = [];
@@ -102,9 +110,9 @@ classdef BaseRaw < handle
             arguments
                 obj
                 tmin {mustBeGreaterThanOrEqual(tmin, 0)}
-                tmax {mustBeReal}
+                tmax {mustBeReal} = obj.times(end)
             end
-
+            
             start = tmin * obj.fs + 1;
             stop = tmax * obj.fs + 1;
 
@@ -138,6 +146,7 @@ classdef BaseRaw < handle
                 obj
                 return_figure logical = false
             end
+            assert(~isempty(obj.chanlocs), "Channel locations not provided.")
             figure;
             plot3([obj.chanlocs.X],[obj.chanlocs.Y],[obj.chanlocs.Z], 'o');
             title(('3D channel location for #' + string(obj.subject)))
