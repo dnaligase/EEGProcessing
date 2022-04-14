@@ -66,8 +66,6 @@ classdef BaseRaw < handle
                    obj.data = lofi(obj.data', 1e6/obj.fs, lo)';
             end
         end
-
-
         
         function [r, meta] = windowedPower(obj,  time_window, noverlap, ...
                 lfreq, hfreq, verbose)
