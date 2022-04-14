@@ -5,6 +5,7 @@ classdef BaseRaw < handle
         times
         psd
         freq
+        raw
     end
     properties (SetAccess = private)
         fs
@@ -54,6 +55,51 @@ classdef BaseRaw < handle
             end
 
         end
+        
+        function [r, meta] = windowedPower(obj,  time_window, noverlap, ...
+                lfreq, hfreq, verbose)
+            % calculate powers in a windowed fashion
+            arguments
+                obj
+                time_window (1,1) double
+                noverlap (1,1) double
+                lfreq (1,1) = 8
+                hfreq (1,1) = 13
+                verbose logical = true
+            end
+            
+            rowsNo = fix((size(obj.data, 2) - obj.fs*time_window) / ...
+                (obj.fs*time_window - obj.fs*noverlap)) + 1;
+            matrix = zeros(rowsNo, size(obj.data,1));
+
+            for j = 1:rowsNo
+                begin = (time_window*obj.fs - noverlap*obj.fs) * (j-1) + 1;
+                stop = time_window*obj.fs + ...
+                    (time_window*obj.fs - noverlap*obj.fs) * (j-1) + 1;
+                
+                powers = obj.sum_power_segment((begin:stop), lfreq, hfreq);
+                matrix(j, :) = powers;
+            end
+
+            r = matrix;
+            meta = struct('time_window', time_window, 'noverlap', noverlap);
+
+            if verbose
+                disp(meta);
+            end
+        end
+
+        function filterEEG(obj,hi,lo)
+            obj.raw = obj.data;
+            if ~isempty(hi)
+                   obj.data = hifi(obj.data', 1e6/obj.fs, hi)';
+            end
+            if ~isempty(lo)
+                   obj.data = lofi(obj.data', 1e6/obj.fs, lo)';
+            end
+        end
+
+
         
         function [r, meta] = windowedPower(obj,  time_window, noverlap, ...
                 lfreq, hfreq, verbose)
@@ -149,6 +195,10 @@ classdef BaseRaw < handle
             assert(~isempty(obj.chanlocs), "Channel locations not provided.")
             figure;
             plot3([obj.chanlocs.X],[obj.chanlocs.Y],[obj.chanlocs.Z], 'o');
+            for i = 1:64
+                locs(i) = {obj.chanlocs(i).labels};
+            end
+            text([obj.chanlocs.X],[obj.chanlocs.Y],[obj.chanlocs.Z],locs,'VerticalAlignment','bottom','HorizontalAlignment','right','FontSize',6)
             title(('3D channel location for #' + string(obj.subject)))
             xlabel('X')
             ylabel('Y')
@@ -162,7 +212,10 @@ classdef BaseRaw < handle
 
     methods (Access = protected)
         function r = create_times(obj)
-            r = reshape(double( 0 : length(obj.data) ) * 1/obj.fs, 1, []);
+            time_step = 1/obj.fs;
+            endpoint = length(obj.data)/obj.fs;
+            r = [time_step:time_step:endpoint];
+%             r = reshape(double( 1/obj.fs : length(obj.data) ) * 1/obj.fs, 1, []);
         end
 
         function r = apply_for_signal(obj, func, channel_wise)
