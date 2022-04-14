@@ -56,39 +56,7 @@ classdef BaseRaw < handle
 
         end
         
-        function [r, meta] = windowedPower(obj,  time_window, noverlap, ...
-                lfreq, hfreq, verbose)
-            % calculate powers in a windowed fashion
-            arguments
-                obj
-                time_window (1,1) double
-                noverlap (1,1) double
-                lfreq (1,1) = 8
-                hfreq (1,1) = 13
-                verbose logical = true
-            end
-            
-            rowsNo = fix((size(obj.data, 2) - obj.fs*time_window) / ...
-                (obj.fs*time_window - obj.fs*noverlap)) + 1;
-            matrix = zeros(rowsNo, size(obj.data,1));
-
-            for j = 1:rowsNo
-                begin = (time_window*obj.fs - noverlap*obj.fs) * (j-1) + 1;
-                stop = time_window*obj.fs + ...
-                    (time_window*obj.fs - noverlap*obj.fs) * (j-1) + 1;
-                
-                powers = obj.sum_power_segment((begin:stop), lfreq, hfreq);
-                matrix(j, :) = powers;
-            end
-
-            r = matrix;
-            meta = struct('time_window', time_window, 'noverlap', noverlap);
-
-            if verbose
-                disp(meta);
-            end
-        end
-
+       
         function filterEEG(obj,hi,lo)
             obj.raw = obj.data;
             if ~isempty(hi)
