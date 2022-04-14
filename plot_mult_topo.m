@@ -1,0 +1,60 @@
+function plot_mult_topo(mat,chans,desc,lims,time_window,noverlap,fname,fps)
+% mat:                  Rows: Timeseries
+%                       Cols: Channels
+%                       If more than two dimensions are provided, topoplots
+%                       will be plottet into subplots
+% chans:                Channel Locations 
+% desc:                 Description/ Title of the plot
+% lims:                 Limits of the colorbar, either als two column
+%                       vector or matrix if different limits should be
+%                       applied for the different plots
+%time_window and noverlap: settings of the calculations
+% fname                 filename of the produced video 'Test.avi'
+% fps:                  Frames per second, e.g. 10
+
+                        
+%% Define number of subplots
+num_plots = size(mat,3);
+rows = ceil(num_plots/2);
+cols = ceil(num_plots/rows);
+%% Check input arguments
+if size(lims,1) == 1
+    lims = repmat(lims,[num_plots,1]);
+end
+%% Define number of frames
+framesNo = size(mat,1);
+% allocate memory for future figures
+F = struct('cdata', cell(1,framesNo), 'colormap', cell(1,framesNo));
+pb = CmdLineProgressBar(("Preparing "+framesNo+" frames using "+noverlap+"s overlap and "+time_window+"s window size... "));
+
+%% Create Figure and axes
+figure('WindowState','maximized','Visible','off')
+for i = 1:framesNo
+    pb.print(i,framesNo)
+    for j = 1:num_plots
+        ax(j) = subplot(rows,cols,j);
+        sgtitle([num2str(time_window + (time_window - noverlap) * (i-1)), ' s'])
+        title(desc{1,j});
+        topoplot(mat(i,:,j),chans);
+        colorbar
+        caxis([lims(j,1),lims(j,2)])
+        F(i) = getframe(gcf);
+    end
+end
+
+writerObj = VideoWriter(fname);
+writerObj.FrameRate = fps;
+disp("Creating " + length(F) / writerObj.FrameRate + " s video...");
+% open the video writer
+open(writerObj);
+% write the frames to the video
+for i=1:length(F)
+    % convert the image to a frame
+    frame = F(i);
+    writeVideo(writerObj, frame);
+end
+% close the writer object
+close(writerObj);
+disp('Done.')
+disp(strcat('Find it as ', pwd, filesep, fname))
+end

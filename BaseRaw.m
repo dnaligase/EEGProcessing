@@ -5,6 +5,7 @@ classdef BaseRaw < handle
         times
         psd
         freq
+        raw
     end
     properties (SetAccess = private)
         fs
@@ -53,6 +54,17 @@ classdef BaseRaw < handle
                 obj.time_as_index = (1 : length(obj));
             end
 
+        end
+        
+       
+        function filterEEG(obj,hi,lo)
+            obj.raw = obj.data;
+            if ~isempty(hi)
+                   obj.data = hifi(obj.data', 1e6/obj.fs, hi)';
+            end
+            if ~isempty(lo)
+                   obj.data = lofi(obj.data', 1e6/obj.fs, lo)';
+            end
         end
         
         function [r, meta] = windowedPower(obj,  time_window, noverlap, ...
@@ -149,6 +161,10 @@ classdef BaseRaw < handle
             assert(~isempty(obj.chanlocs), "Channel locations not provided.")
             figure;
             plot3([obj.chanlocs.X],[obj.chanlocs.Y],[obj.chanlocs.Z], 'o');
+            for i = 1:64
+                locs(i) = {obj.chanlocs(i).labels};
+            end
+            text([obj.chanlocs.X],[obj.chanlocs.Y],[obj.chanlocs.Z],locs,'VerticalAlignment','bottom','HorizontalAlignment','right','FontSize',6)
             title(('3D channel location for #' + string(obj.subject)))
             xlabel('X')
             ylabel('Y')
@@ -162,7 +178,10 @@ classdef BaseRaw < handle
 
     methods (Access = protected)
         function r = create_times(obj)
-            r = reshape(double( 0 : length(obj.data) ) * 1/obj.fs, 1, []);
+            time_step = 1/obj.fs;
+            endpoint = length(obj.data)/obj.fs;
+            r = [time_step:time_step:endpoint];
+%             r = reshape(double( 1/obj.fs : length(obj.data) ) * 1/obj.fs, 1, []);
         end
 
         function r = apply_for_signal(obj, func, channel_wise)
