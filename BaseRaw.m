@@ -6,6 +6,7 @@ classdef BaseRaw < handle
         psd
         freq
         raw
+        no_chan
     end
     properties (SetAccess = private)
         fs
@@ -28,6 +29,7 @@ classdef BaseRaw < handle
             if nargin >= 1
                 obj.data = EEG.data(picks, :);
                 obj.fs = EEG.srate;
+                obj.no_chan = size(obj.data,1);
 
                 if  ~isfield(EEG, 'subject') || isempty(EEG.subject)
                     obj.subject = string(obj.id);
@@ -46,7 +48,7 @@ classdef BaseRaw < handle
 
                 [obj.psd, obj.freq] = pwelch(obj.data',[],[],256,obj.fs);
                 if isfield(EEG, 'chanlocs')
-                    obj.chanlocs = EEG.chanlocs;
+                    obj.chanlocs = EEG.chanlocs(1,picks);
                 else
                     obj.chanlocs = [];
                 end
@@ -108,9 +110,9 @@ classdef BaseRaw < handle
             % segment in datapoints as ``double``
             art_mat = abs(transposed(segment,:)) > 100;
             art_vec = ~any(art_mat);
-            psd_window = NaN(129,64);
+            psd_window = NaN(129,obj.no_chan);
             freq_window = NaN(129,1);
-            r = NaN(1,64);
+            r = NaN(1,obj.no_chan);
             if sum(art_vec) > 0
             [psd_window(:,art_vec), freq_window] = pwelch(transposed(segment, art_vec), ...
                 [],[],256,obj.fs);
@@ -161,7 +163,7 @@ classdef BaseRaw < handle
             assert(~isempty(obj.chanlocs), "Channel locations not provided.")
             figure;
             plot3([obj.chanlocs.X],[obj.chanlocs.Y],[obj.chanlocs.Z], 'o');
-            for i = 1:64
+            for i = 1:obj.no_chan
                 locs(i) = {obj.chanlocs(i).labels};
             end
             text([obj.chanlocs.X],[obj.chanlocs.Y],[obj.chanlocs.Z],locs,'VerticalAlignment','bottom','HorizontalAlignment','right','FontSize',6)

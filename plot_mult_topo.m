@@ -1,4 +1,4 @@
-function plot_mult_topo(mat,chans,desc,lims,time_window,noverlap,fname,fps)
+function plot_mult_topo(mat,chans,desc,lims,time_vec,fname,fps)
 % mat:                  Rows: Timeseries
 %                       Cols: Channels
 %                       If more than two dimensions are provided, topoplots
@@ -25,7 +25,7 @@ end
 framesNo = size(mat,1);
 % allocate memory for future figures
 F = struct('cdata', cell(1,framesNo), 'colormap', cell(1,framesNo));
-pb = CmdLineProgressBar(("Preparing "+framesNo+" frames using "+noverlap+"s overlap and "+time_window+"s window size... "));
+pb = CmdLineProgressBar(("Preparing "+framesNo+ " Frames... "));
 
 %% Create Figure and axes
 figure('WindowState','maximized','Visible','off')
@@ -33,7 +33,7 @@ for i = 1:framesNo
     pb.print(i,framesNo)
     for j = 1:num_plots
         ax(j) = subplot(rows,cols,j);
-        sgtitle([num2str(time_window + (time_window - noverlap) * (i-1)), ' s'])
+        sgtitle([num2str(time_vec(i)), ' s'])
         title(desc{1,j});
         topoplot(mat(i,:,j),chans);
         colorbar
