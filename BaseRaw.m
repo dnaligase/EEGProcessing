@@ -28,6 +28,7 @@ classdef BaseRaw < handle
 
             if nargin >= 1
                 obj.data = EEG.data(picks, :);
+                obj.raw = EEG.data(picks, :);
                 obj.fs = EEG.srate;
                 obj.no_chan = size(obj.data,1);
 
@@ -57,76 +58,25 @@ classdef BaseRaw < handle
             end
 
         end
-        
-       
+
         function filterEEG(obj,hi,lo)
-            obj.raw = obj.data;
-            if ~isempty(hi)
-                   obj.data = hifi(obj.data', 1e6/obj.fs, hi)';
-            end
-            if ~isempty(lo)
-                   obj.data = lofi(obj.data', 1e6/obj.fs, lo)';
-            end
-        end
-        
-        function [r, meta] = windowedPower(obj,  time_window, noverlap, ...
-                lfreq, hfreq, verbose)
-            % calculate powers in a windowed fashion
-            arguments
-                obj
-                time_window (1,1) double
-                noverlap (1,1) double
-                lfreq (1,1) = 8
-                hfreq (1,1) = 13
-                verbose logical = true
-            end
-            
-            rowsNo = fix((size(obj.data, 2) - obj.fs*time_window) / ...
-                (obj.fs*time_window - obj.fs*noverlap)) + 1;
-            matrix = zeros(rowsNo, size(obj.data,1));
-
-            for j = 1:rowsNo
-                begin = (time_window*obj.fs - noverlap*obj.fs) * (j-1) + 1;
-                stop = time_window*obj.fs + ...
-                    (time_window*obj.fs - noverlap*obj.fs) * (j-1) + 1;
-                
-                powers = obj.sum_power_segment((begin:stop), lfreq, hfreq);
-                matrix(j, :) = powers;
-            end
-
-            r = matrix;
-            meta = struct('time_window', time_window, 'noverlap', noverlap);
-
-            if verbose
-                disp(meta);
+            if ~isempty(hi) && ~isempty(lo)
+                obj.data = hifi(obj.raw', 1e6/obj.fs, hi)';
+                obj.data = lofi(obj.data', 1e6/obj.fs, lo)';
+            elseif ~isempty(lo)
+                obj.data = lofi(obj.raw', 1e6/obj.fs, lo)';
+            elseif ~isempty(hi)
+                obj.data = hifi(obj.raw', 1e6/obj.fs, hi)';
             end
         end
 
-        function r = sum_power(obj, l_freq, h_freq)
-            r = sum_freq_band(obj.psd, obj.freq, l_freq, h_freq);
-        end
-        function r = sum_power_segment(obj, segment, l_freq, h_freq)
-            transposed = obj.data';
-            % segment in datapoints as ``double``
-            art_mat = abs(transposed(segment,:)) > 100;
-            art_vec = ~any(art_mat);
-            psd_window = NaN(129,obj.no_chan);
-            freq_window = NaN(129,1);
-            r = NaN(1,obj.no_chan);
-            if sum(art_vec) > 0
-            [psd_window(:,art_vec), freq_window] = pwelch(transposed(segment, art_vec), ...
-                [],[],256,obj.fs);
-            
-            r = sum_freq_band(psd_window, freq_window, l_freq, h_freq);
-            end
-        end
         function crop(obj, tmin, tmax)
             arguments
                 obj
                 tmin {mustBeGreaterThanOrEqual(tmin, 0)}
                 tmax {mustBeReal} = obj.times(end)
             end
-            
+
             start = tmin * obj.fs + 1;
             stop = tmax * obj.fs + 1;
 
@@ -141,6 +91,62 @@ classdef BaseRaw < handle
             obj.times = times_vec - min(times_vec);
 
         end
+
+        function [r, r1, meta] = windowedPower(obj,  time_window, noverlap, ...
+                lfreq, hfreq, verbose)
+            % calculate powers in a windowed fashion
+            arguments
+                obj
+                time_window (1,1) double
+                noverlap (1,1) double
+                lfreq (1,1) = 8
+                hfreq (1,1) = 13
+                verbose logical = false
+            end
+
+            rowsNo = fix((size(obj.data, 2) - obj.fs*time_window) / ...
+                (obj.fs*time_window - obj.fs*noverlap)) + 1;
+            matrix = zeros(rowsNo, obj.no_chan);
+            matrix_DSA = zeros(length(obj.freq), obj.no_chan,rowsNo);
+            for j = 1:rowsNo
+                begin = (time_window*obj.fs - noverlap*obj.fs) * (j-1) + 1;
+                stop = time_window*obj.fs + ...
+                    (time_window*obj.fs - noverlap*obj.fs) * (j-1) + 1;
+
+                [powers,cur_DSA] = obj.sum_power_segment((begin:stop), lfreq, hfreq);
+                matrix(j, :) = powers;
+                matrix_DSA(:,:,j) = cur_DSA;
+            end
+
+            r = matrix;
+            r1 = matrix_DSA;
+            meta = struct('time_window', time_window, 'noverlap', noverlap);
+
+            if verbose
+                disp(meta);
+            end
+        end
+
+        function r = sum_power(obj, l_freq, h_freq)
+            r = sum_freq_band(obj.psd, obj.freq, l_freq, h_freq);
+        end
+
+        function [r,r1] = sum_power_segment(obj, segment, l_freq, h_freq)
+            transposed = obj.data';
+            % segment in datapoints as ``double``
+            art_mat = abs(transposed(segment,:)) > 100;
+            art_vec = ~any(art_mat);
+            psd_window = NaN(129,obj.no_chan);
+            freq_window = NaN(129,1);
+            r = NaN(1,obj.no_chan);
+            if sum(art_vec) > 0
+                [psd_window(:,art_vec), freq_window] = pwelch(transposed(segment, art_vec), ...
+                    [],[],256,obj.fs);
+                r = sum_freq_band(psd_window, freq_window, l_freq, h_freq);
+            end
+            r1 = psd_window;
+        end
+
         function r = apply_function(obj, func, channel_wise, inplace)
             arguments
                 obj
@@ -155,6 +161,7 @@ classdef BaseRaw < handle
                 r = obj.apply_for_signal(func, channel_wise);
             end
         end
+
         function r = plot_channels_3d(obj, return_figure)
             arguments
                 obj
@@ -183,7 +190,7 @@ classdef BaseRaw < handle
             time_step = 1/obj.fs;
             endpoint = length(obj.data)/obj.fs;
             r = [time_step:time_step:endpoint];
-%             r = reshape(double( 1/obj.fs : length(obj.data) ) * 1/obj.fs, 1, []);
+            %             r = reshape(double( 1/obj.fs : length(obj.data) ) * 1/obj.fs, 1, []);
         end
 
         function r = apply_for_signal(obj, func, channel_wise)
