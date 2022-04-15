@@ -1,3 +1,4 @@
 ch_names.mat
 *.asv
 data
+.DS_Store
