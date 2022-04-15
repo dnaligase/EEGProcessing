@@ -18,7 +18,7 @@ classdef BaseRaw < handle
         time_as_index
         id = 1
     end
-
+%% Methods for Basic EEG Processing and Visualization
     methods
         function obj = BaseRaw(EEG, picks)
             arguments
@@ -60,6 +60,7 @@ classdef BaseRaw < handle
         end
 
         function filterEEG(obj,hi,lo)
+            % Apply Basic High and Low Pass filter
             if ~isempty(hi) && ~isempty(lo)
                 obj.data = hifi(obj.raw', 1e6/obj.fs, hi)';
                 obj.data = lofi(obj.data', 1e6/obj.fs, lo)';
@@ -71,6 +72,8 @@ classdef BaseRaw < handle
         end
 
         function crop(obj, tmin, tmax)
+            % Crop at specific timepoint 
+            % To Do: Crop at index, not at second
             arguments
                 obj
                 tmin {mustBeGreaterThanOrEqual(tmin, 0)}
@@ -147,6 +150,80 @@ classdef BaseRaw < handle
             r1 = psd_window;
         end
 
+   %Test functions
+        function matrix_DSA = create_DSA(obj,time_window, noverlap)
+            %Creates DSA of Power Spectrum for window and noverlap
+            rowsNo = fix((size(obj.data, 2) - obj.fs*time_window) / ...
+                (obj.fs*time_window - obj.fs*noverlap)) + 1;
+            matrix_DSA = zeros(length(obj.freq), obj.no_chan,rowsNo);
+            for j = 1:rowsNo
+                begin = (time_window*obj.fs - noverlap*obj.fs) * (j-1) + 1;
+                stop = time_window*obj.fs + ...
+                    (time_window*obj.fs - noverlap*obj.fs) * (j-1) + 1;
+
+                [powers] = obj.power_segment((begin:stop));
+                matrix_DSA(:,:,j) = powers;
+            end
+          
+        end
+        function [r, meta] = windowedPower1(obj,  time_window, noverlap, ...
+                lfreq, hfreq, verbose)
+            % calculate powers in a windowed fashion
+            arguments
+                obj
+                time_window (1,1) double
+                noverlap (1,1) double
+                lfreq (1,1) = 8
+                hfreq (1,1) = 13
+                verbose logical = false
+            end
+
+            matrix_DSA = obj.create_DSA(time_window, noverlap);            
+            r = sum_freq_band(matrix_DSA, obj.freq, lfreq, hfreq);
+            meta = struct('time_window', time_window, 'noverlap', noverlap);
+
+            if verbose
+                disp(meta);
+            end
+        end
+
+        function [psd_window] = power_segment(obj, segment)
+            transposed = obj.data';
+            % segment in datapoints as ``double``
+            art_mat = abs(transposed(segment,:)) > 100;
+            art_vec = ~any(art_mat);
+            psd_window = NaN(129,obj.no_chan);
+            if sum(art_vec) > 0
+                [psd_window(:,art_vec), ~] = pwelch(transposed(segment, art_vec), ...
+                    [],[],256,obj.fs);
+            end
+        end
+
+        function plt = plot_single_channel(obj,ch,time_window, noverlap)
+            % Plot single channel DSA and Raw EEG 
+            % To Do: 
+            % Display Channel name, check time_vector and position of
+            % colorbar
+            plt = figure('WindowState','maximized');
+            % Calculate DSA
+            matrix_DSA = create_DSA(obj,time_window, noverlap);
+            subplot(2,1,1)
+            xax = 0:time_window-noverlap:size(obj.data,2)/obj.fs-time_window;
+            pcolor(xax,obj.freq,10*log10(squeeze(matrix_DSA(:,ch,:))))
+            shading flat
+            shading interp
+            colormap turbo
+            colorbar
+            caxis([-20 20])
+            ylim([0 47])
+            xlim([xax(1),xax(end)])
+            ylabel('Frequency [Hz]')
+            xlabel('Time [s]')
+            subplot(2,1,2)
+            plot(obj.times,obj.data(ch,:))
+        end
+
+% Test over
         function r = apply_function(obj, func, channel_wise, inplace)
             arguments
                 obj
@@ -190,7 +267,6 @@ classdef BaseRaw < handle
             time_step = 1/obj.fs;
             endpoint = length(obj.data)/obj.fs;
             r = [time_step:time_step:endpoint];
-            %             r = reshape(double( 1/obj.fs : length(obj.data) ) * 1/obj.fs, 1, []);
         end
 
         function r = apply_for_signal(obj, func, channel_wise)
