@@ -32,9 +32,17 @@ figure('WindowState','maximized','Visible','off')
 for i = 1:framesNo
     pb.print(i,framesNo)
     for j = 1:num_plots
-        ax(j) = subplot(rows,cols,j);
-        sgtitle([num2str(time_vec(i)), ' s'])
-        title(desc{1,j});
+        if num_plots == 1
+            t1 = [num2str(time_vec(i)), ' s'];
+            t2 = desc;
+            t = [t1;t2];
+            title(t);
+        else
+          ax(j) = subplot(rows,cols,j);
+          sgtitle([num2str(time_vec(i)), ' s'])
+          title(desc{1,j});
+          
+        end
         topoplot(mat(i,:,j),chans);
         colorbar
         caxis([lims(j,1),lims(j,2)])

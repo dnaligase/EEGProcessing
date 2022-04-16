@@ -199,16 +199,31 @@ classdef BaseRaw < handle
             end
         end
 
-        function plt = plot_single_channel(obj,ch,time_window, noverlap)
+        function datavec = sum_freq_band(obj, psd, l_freq, h_freq)
+            assert(size(psd, 1) == size(obj.freq, 1), "psd and freqs dims don't match!")
+
+            idxs = obj.freq >= l_freq & obj.freq < h_freq;
+            if size(psd,3) == 1
+                datavec = sum(psd(idxs, :), 1);
+            elseif size(psd,3) > 1                  % Works on 3D matrix
+                datavec = sum(psd(idxs, :,:), 1);
+                datavec = squeeze(datavec)';
+            end
+        end
+
+        function plt = plot_single_channel(obj,ch,time_window, noverlap,xax)
             % Plot single channel DSA and Raw EEG 
             % To Do: 
-            % Display Channel name, check time_vector and position of
-            % colorbar
-            plt = figure('WindowState','maximized');
+            % check time_vector and position of the colorbar
+            plt = figure('WindowState','maximized','Name',obj.subject);
+            ch_name = obj.chanlocs(ch).labels;
+            if isempty(xax)
+                xax = 0:time_window-noverlap:size(obj.data,2)/obj.fs-time_window;
+            end
+            sgtitle(ch_name,'FontName','Arial','FontSize',12,'FontWeight','Bold')
             % Calculate DSA
             matrix_DSA = create_DSA(obj,time_window, noverlap);
             subplot(2,1,1)
-            xax = 0:time_window-noverlap:size(obj.data,2)/obj.fs-time_window;
             pcolor(xax,obj.freq,10*log10(squeeze(matrix_DSA(:,ch,:))))
             shading flat
             shading interp
@@ -218,9 +233,99 @@ classdef BaseRaw < handle
             ylim([0 47])
             xlim([xax(1),xax(end)])
             ylabel('Frequency [Hz]')
-            xlabel('Time [s]')
+            set(gca,'FontName','Arial','FontSize',12,'FontWeight','Bold', 'LineWidth', 1)
+            box(gca,'off')
             subplot(2,1,2)
             plot(obj.times,obj.data(ch,:))
+            ylabel('Amplitude [mV]')
+            xlabel('Time [s]')
+            set(gca,'FontName','Arial','FontSize',12,'FontWeight','Bold', 'LineWidth', 1)
+            box(gca,'off')
+        end
+
+        function tg = plot_all_channels(obj,time_window, noverlap,xax)
+            % Plot channels DSA and Raw EEG 
+            % To Do: 
+            % Display Channel name, check time_vector and position of
+            % colorbar
+            if isempty(xax)
+                xax = 0:time_window-noverlap:size(obj.data,2)/obj.fs-time_window;
+            end
+            plt = figure('WindowState','maximized','Name',obj.subject);
+            % Calculate DSA
+            matrix_DSA = create_DSA(obj,time_window, noverlap);
+            tg = uitabgroup(plt); % tabgroup
+            for i = 1:obj.no_chan
+                ch_name = obj.chanlocs(i).labels;
+                thistab = uitab(tg,"Title",ch_name); % build iith tab
+                axes('Parent',thistab); % somewhere to plot
+                sgtitle(ch_name,'FontName','Arial','FontSize',12,'FontWeight','Bold')
+                subplot(2,1,1)
+                pcolor(xax,obj.freq,10*log10(squeeze(matrix_DSA(:,i,:))))
+                shading flat
+                shading interp
+                colormap turbo
+                colorbar
+                caxis([-20 20])
+                ylim([0 47])
+                xlim([xax(1),xax(end)])
+                ylabel('Frequency [Hz]')
+                set(gca,'FontName','Arial','FontSize',12,'FontWeight','Bold', 'LineWidth', 1)
+                box(gca,'off')
+                subplot(2,1,2)
+                plot(obj.times,obj.data(i,:))
+                ylabel('Amplitude [mV]')
+                xlabel('Time [s]')
+                set(gca,'FontName','Arial','FontSize',12,'FontWeight','Bold', 'LineWidth', 1)
+                box(gca,'off')
+            end
+        end
+
+        function tg = plot_power_bands(obj,matrix_DSA,time_window,noverlap,xax)
+            % User can supply DSA_matrix (e.g. Averaged DSA over all
+            % patients), if nothing is supplied function operates on single
+            % patient basis
+            % X-Axis can be supplied,otherwise xax will be calculated based
+            % on window and noverlap
+            if isempty(xax)
+                xax = 0:time_window-noverlap:size(obj.data,2)/obj.fs-time_window;
+            end
+            if isempty(matrix_DSA)
+            matrix_DSA = create_DSA(obj,time_window, noverlap);
+            end
+            plt = figure('WindowState','maximized','Name',obj.subject);
+            l = sum_freq_band(matrix_DSA, obj.freq, 1, 6.99);
+            a = sum_freq_band(matrix_DSA, obj.freq, 7, 12.99);
+            b = sum_freq_band(matrix_DSA, obj.freq, 13, 29.99);
+            g = sum_freq_band(matrix_DSA, obj.freq, 30, 46);
+            % Create 4 plots with bandpower over time
+            tg = uitabgroup(plt); % tabgroup
+            sz = 5;
+            for i = 1:obj.no_chan
+                ch_name = obj.chanlocs(i).labels;
+                thistab = uitab(tg,"Title",ch_name); % build iith tab
+                axes('Parent',thistab); % somewhere to plot
+                sgtitle(ch_name,'FontName','Arial','FontSize',12,'FontWeight','Bold')
+                ax(1) = subplot(2,2,1);
+                scatter(xax,l(:,i),sz,'filled')
+                ylabel('Power')
+                title('Low Frequency Band')
+                ax(2) = subplot(2,2,2);
+                scatter(xax,a(:,i),sz,'filled')
+                ylabel('Power')
+                title('Alpha Band')
+                ax(3) = subplot(2,2,3);
+                scatter(xax,b(:,i),sz,'filled')
+                ylabel('Power')
+                title('Beta Band')
+                ax(4) = subplot(2,2,4);
+                scatter(xax,g(:,i),sz,'filled')
+                ylabel('Power')
+                title('Gamma Band')
+                set(ax,'FontName','Arial','FontSize',12,'FontWeight','Bold', 'LineWidth', 1)
+                box(ax,'off')
+                xlim(ax,[xax(1),xax(end)])
+            end            
         end
 
 % Test over
