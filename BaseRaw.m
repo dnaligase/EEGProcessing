@@ -328,7 +328,50 @@ classdef BaseRaw < handle
             end            
         end
 
-% Test over
+        function fig = plot_artefact_matrix(obj,time_window, threshold,time_vec)
+
+            size_data = size(obj.data,2);
+            no_epochs = floor(size_data(1)/(time_window*obj.fs));
+            M_woA = zeros(obj.no_chan, no_epochs); % Matrix to contain time series without artefacts
+            if isempty(time_vec)
+                time_vec = 1:time_window:no_epochs*time_window;
+            end
+            for ch = 1:obj.no_chan   % loop over (the 64) channels
+
+                channel_data = obj.data(ch, :); % data set for channel under consideration
+
+                for j = 1:no_epochs % loop over (the 4s) epochs
+
+                    first_sample = (j-1)*time_window*obj.fs + 1;
+                    last_sample = j*time_window*obj.fs;
+                    epoch_data = abs(channel_data(first_sample:last_sample));
+                    artifacts = epoch_data >= threshold;
+                    if (any(artifacts)) % set values for Matrix M = 1 if artifacts found
+                        M_woA(ch, j) = 1;
+                    end
+                end
+            end
+
+            % Plot matrix M
+            figure('WindowState','maximized','Name',obj.subject)
+            [r, c] = size(M_woA);                               % Get the matrix size
+            imagesc((1:c)+0.5, (1:r)+0.5, M_woA);               % Plot the image
+            hold on;
+            colormap(gray); % Use a gray colormap
+            xlabel('Number of Epoch')
+            axis equal
+            for i = 1:obj.no_chan
+                locs(i) = {obj.chanlocs(i).labels};
+            end
+            %y_labels = {channels{1}:channels{r}};
+            set(gca,'XTick', 1:2:c, 'YTick', 1:r, ...        % Change axes properties
+                'YTickLabel', locs,...
+                'XLim', [1 c+1], 'YLim', [1 r+1], ...
+                'GridLineStyle', '-', 'XGrid', 'on', 'YGrid', 'on','FontSize',6);
+            hold off
+        end
+
+        % Test over
         function r = apply_function(obj, func, channel_wise, inplace)
             arguments
                 obj
