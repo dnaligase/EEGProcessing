@@ -131,7 +131,7 @@ classdef BaseRaw < handle
         end
 
         function r = sum_power(obj, l_freq, h_freq)
-            r = sum_freq_band(obj.psd, obj.freq, l_freq, h_freq);
+            r = obj.sum_freq_band(obj.psd, l_freq, h_freq);
         end
 
         function [r,r1] = sum_power_segment(obj, segment, l_freq, h_freq)
@@ -145,7 +145,7 @@ classdef BaseRaw < handle
             if sum(art_vec) > 0
                 [psd_window(:,art_vec), freq_window] = pwelch(transposed(segment, art_vec), ...
                     [],[],256,obj.fs);
-                r = sum_freq_band(psd_window, freq_window, l_freq, h_freq);
+                r = obj.sum_freq_band(psd_window, l_freq, h_freq);
             end
             r1 = psd_window;
         end
@@ -179,7 +179,7 @@ classdef BaseRaw < handle
             end
 
             matrix_DSA = obj.create_DSA(time_window, noverlap);            
-            r = sum_freq_band(matrix_DSA, obj.freq, lfreq, hfreq);
+            r = obj.sum_freq_band(matrix_DSA, lfreq, hfreq);
             meta = struct('time_window', time_window, 'noverlap', noverlap);
 
             if verbose
@@ -294,10 +294,10 @@ classdef BaseRaw < handle
             matrix_DSA = create_DSA(obj,time_window, noverlap);
             end
             plt = figure('WindowState','maximized','Name',obj.subject);
-            l = sum_freq_band(matrix_DSA, obj.freq, 1, 6.99);
-            a = sum_freq_band(matrix_DSA, obj.freq, 7, 12.99);
-            b = sum_freq_band(matrix_DSA, obj.freq, 13, 29.99);
-            g = sum_freq_band(matrix_DSA, obj.freq, 30, 46);
+            l = obj.sum_freq_band(matrix_DSA, 1, 6.99);
+            a = obj.sum_freq_band(matrix_DSA, 7, 12.99);
+            b = obj.sum_freq_band(matrix_DSA, 13, 29.99);
+            g = obj.sum_freq_band(matrix_DSA, 30, 46);
             % Create 4 plots with bandpower over time
             tg = uitabgroup(plt); % tabgroup
             sz = 5;

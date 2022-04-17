@@ -28,7 +28,7 @@ F = struct('cdata', cell(1,framesNo), 'colormap', cell(1,framesNo));
 pb = CmdLineProgressBar(("Preparing "+framesNo+ " Frames... "));
 
 %% Create Figure and axes
-figure('WindowState','maximized','Visible','off')
+figure('WindowState','maximized','Visible','on')
 for i = 1:framesNo
     pb.print(i,framesNo)
     for j = 1:num_plots
@@ -47,6 +47,7 @@ for i = 1:framesNo
         colorbar
         caxis([lims(j,1),lims(j,2)])
         F(i) = getframe(gcf);
+        cla(gca)
     end
 end
 
