@@ -7,6 +7,7 @@ classdef BaseRaw < handle
         freq
         raw
         no_chan
+        DSA
     end
     properties (SetAccess = private)
         fs
@@ -154,18 +155,18 @@ classdef BaseRaw < handle
         function matrix_DSA = create_DSA(obj,time_window, noverlap)
             %Creates DSA of Power Spectrum for window and noverlap
             rowsNo = fix((size(obj.data, 2) - obj.fs*time_window) / ...
-                (obj.fs*time_window - obj.fs*noverlap)) + 1;
+                (obj.fs*noverlap)) + 1;
             matrix_DSA = zeros(length(obj.freq), obj.no_chan,rowsNo);
-            for j = 1:rowsNo
-                begin = (time_window*obj.fs - noverlap*obj.fs) * (j-1) + 1;
-                stop = time_window*obj.fs + ...
-                    (time_window*obj.fs - noverlap*obj.fs) * (j-1) + 1;
-
+            cnt = 1;
+            for j=1:obj.fs*noverlap:length(obj.data)-time_window*obj.fs
+                begin = j;                              
+                stop = j+time_window*obj.fs-1;
                 [powers] = obj.power_segment((begin:stop));
-                matrix_DSA(:,:,j) = powers;
-            end
-          
+                matrix_DSA(:,:,cnt) = powers;
+                cnt = cnt+1;
+            end             
         end
+
         function [r, meta] = windowedPower1(obj,  time_window, noverlap, ...
                 lfreq, hfreq, verbose)
             % calculate powers in a windowed fashion
@@ -218,7 +219,7 @@ classdef BaseRaw < handle
             plt = figure('WindowState','maximized','Name',obj.subject);
             ch_name = obj.chanlocs(ch).labels;
             if isempty(xax)
-                xax = 0:time_window-noverlap:size(obj.data,2)/obj.fs-time_window;
+                xax = 0:noverlap:size(obj.data,2)/obj.fs-time_window;
             end
             sgtitle(ch_name,'FontName','Arial','FontSize',12,'FontWeight','Bold')
             % Calculate DSA
@@ -243,17 +244,19 @@ classdef BaseRaw < handle
             box(gca,'off')
         end
 
-        function tg = plot_all_channels(obj,time_window, noverlap,xax)
+        function tg = plot_all_channels(obj,matrix_DSA,time_window, noverlap,xax)
             % Plot channels DSA and Raw EEG 
             % To Do: 
             % Display Channel name, check time_vector and position of
             % colorbar
             if isempty(xax)
-                xax = 0:time_window-noverlap:size(obj.data,2)/obj.fs-time_window;
+                xax = 0:noverlap:size(obj.data,2)/obj.fs-time_window;
             end
             plt = figure('WindowState','maximized','Name',obj.subject);
             % Calculate DSA
+            if isempty(matrix_DSA)
             matrix_DSA = create_DSA(obj,time_window, noverlap);
+            end
             tg = uitabgroup(plt); % tabgroup
             for i = 1:obj.no_chan
                 ch_name = obj.chanlocs(i).labels;
@@ -288,7 +291,7 @@ classdef BaseRaw < handle
             % X-Axis can be supplied,otherwise xax will be calculated based
             % on window and noverlap
             if isempty(xax)
-                xax = 0:time_window-noverlap:size(obj.data,2)/obj.fs-time_window;
+                xax = 0:noverlap:size(obj.data,2)/obj.fs-time_window;
             end
             if isempty(matrix_DSA)
             matrix_DSA = create_DSA(obj,time_window, noverlap);

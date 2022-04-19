@@ -32,6 +32,7 @@ figure('WindowState','maximized','Visible','on')
 for i = 1:framesNo
     pb.print(i,framesNo)
     for j = 1:num_plots
+
         if num_plots == 1
             t1 = [num2str(time_vec(i)), ' s'];
             t2 = desc;
@@ -47,7 +48,9 @@ for i = 1:framesNo
         colorbar
         caxis([lims(j,1),lims(j,2)])
         F(i) = getframe(gcf);
+        if num_plots == 1
         cla(gca)
+        end
     end
 end
 
