@@ -12,8 +12,6 @@ classdef BaseRaw < handle
     properties (SetAccess = private)
         fs
         chanlocs
-        first_samp = 1
-        last_samp
     end
     properties (Hidden = true)
         time_as_index
@@ -28,7 +26,7 @@ classdef BaseRaw < handle
             end
 
             if nargin >= 1
-                obj.data = EEG.data(picks, :);
+                obj.data = EEG.data(picks, :);          % Rows = channels
                 obj.raw = EEG.data(picks, :);
                 obj.fs = EEG.srate;
                 obj.no_chan = size(obj.data,1);
@@ -54,7 +52,6 @@ classdef BaseRaw < handle
                 else
                     obj.chanlocs = [];
                 end
-                obj.last_samp = length(obj);
                 obj.time_as_index = (1 : length(obj));
             end
 
@@ -62,6 +59,7 @@ classdef BaseRaw < handle
 
         function filterEEG(obj,hi,lo)
             % Apply Basic High and Low Pass filter
+            % Filter works on columns
             if ~isempty(hi) && ~isempty(lo)
                 obj.data = hifi(obj.raw', 1e6/obj.fs, hi)';
                 obj.data = lofi(obj.data', 1e6/obj.fs, lo)';
@@ -72,86 +70,23 @@ classdef BaseRaw < handle
             end
         end
 
-        function crop(obj, tmin, tmax)
-            % Crop at specific timepoint 
-            % To Do: Crop at index, not at second
+        function crop(obj, start, stop)
+            % Crop at specific index
             arguments
                 obj
-                tmin {mustBeGreaterThanOrEqual(tmin, 0)}
-                tmax {mustBeReal} = obj.times(end)
+                start {mustBeGreaterThanOrEqual(start, 1)}
+                stop {mustBeReal} = obj.times(end)
             end
-
-            start = tmin * obj.fs + 1;
-            stop = tmax * obj.fs + 1;
-
-            obj.first_samp = obj.time_as_index(1) + start - 1;
-            obj.last_samp = obj.time_as_index(1) + stop - 1;
-
-            obj.time_as_index = obj.time_as_index(1, ...
-                start:stop);
 
             obj.data = obj.data(:, start:stop);
             times_vec = obj.times(:, start:stop);
             obj.times = times_vec - min(times_vec);
-
-        end
-
-        function [r, r1, meta] = windowedPower(obj,  time_window, noverlap, ...
-                lfreq, hfreq, verbose)
-            % calculate powers in a windowed fashion
-            arguments
-                obj
-                time_window (1,1) double
-                noverlap (1,1) double
-                lfreq (1,1) = 8
-                hfreq (1,1) = 13
-                verbose logical = false
-            end
-
-            rowsNo = fix((size(obj.data, 2) - obj.fs*time_window) / ...
-                (obj.fs*time_window - obj.fs*noverlap)) + 1;
-            matrix = zeros(rowsNo, obj.no_chan);
-            matrix_DSA = zeros(length(obj.freq), obj.no_chan,rowsNo);
-            for j = 1:rowsNo
-                begin = (time_window*obj.fs - noverlap*obj.fs) * (j-1) + 1;
-                stop = time_window*obj.fs + ...
-                    (time_window*obj.fs - noverlap*obj.fs) * (j-1) + 1;
-
-                [powers,cur_DSA] = obj.sum_power_segment((begin:stop), lfreq, hfreq);
-                matrix(j, :) = powers;
-                matrix_DSA(:,:,j) = cur_DSA;
-            end
-
-            r = matrix;
-            r1 = matrix_DSA;
-            meta = struct('time_window', time_window, 'noverlap', noverlap);
-
-            if verbose
-                disp(meta);
-            end
         end
 
         function r = sum_power(obj, l_freq, h_freq)
             r = obj.sum_freq_band(obj.psd, l_freq, h_freq);
         end
 
-        function [r,r1] = sum_power_segment(obj, segment, l_freq, h_freq)
-            transposed = obj.data';
-            % segment in datapoints as ``double``
-            art_mat = abs(transposed(segment,:)) > 100;
-            art_vec = ~any(art_mat);
-            psd_window = NaN(129,obj.no_chan);
-            freq_window = NaN(129,1);
-            r = NaN(1,obj.no_chan);
-            if sum(art_vec) > 0
-                [psd_window(:,art_vec), freq_window] = pwelch(transposed(segment, art_vec), ...
-                    [],[],256,obj.fs);
-                r = obj.sum_freq_band(psd_window, l_freq, h_freq);
-            end
-            r1 = psd_window;
-        end
-
-   %Test functions
         function matrix_DSA = create_DSA(obj,time_window, noverlap)
             %Creates DSA of Power Spectrum for window and noverlap
             rowsNo = fix((size(obj.data, 2) - obj.fs*time_window) / ...
@@ -167,7 +102,7 @@ classdef BaseRaw < handle
             end             
         end
 
-        function [r, meta] = windowedPower1(obj,  time_window, noverlap, ...
+        function [r, meta] = windowedPower(obj,  time_window, noverlap, ...
                 lfreq, hfreq, verbose)
             % calculate powers in a windowed fashion
             arguments
@@ -193,7 +128,8 @@ classdef BaseRaw < handle
             % segment in datapoints as ``double``
             art_mat = abs(transposed(segment,:)) > 100;
             art_vec = ~any(art_mat);
-            psd_window = NaN(129,obj.no_chan);
+            no_rows = size(obj.psd,1);
+            psd_window = NaN(no_rows,obj.no_chan);
             if sum(art_vec) > 0
                 [psd_window(:,art_vec), ~] = pwelch(transposed(segment, art_vec), ...
                     [],[],256,obj.fs);
@@ -331,14 +267,11 @@ classdef BaseRaw < handle
             end            
         end
 
-        function fig = plot_artefact_matrix(obj,time_window, threshold,time_vec)
+        function fig = plot_artefact_matrix(obj,time_window, threshold)
 
             size_data = size(obj.data,2);
             no_epochs = floor(size_data(1)/(time_window*obj.fs));
             M_woA = zeros(obj.no_chan, no_epochs); % Matrix to contain time series without artefacts
-            if isempty(time_vec)
-                time_vec = 1:time_window:no_epochs*time_window;
-            end
             for ch = 1:obj.no_chan   % loop over (the 64) channels
 
                 channel_data = obj.data(ch, :); % data set for channel under consideration
@@ -356,7 +289,7 @@ classdef BaseRaw < handle
             end
 
             % Plot matrix M
-            figure('WindowState','maximized','Name',obj.subject)
+            fig = figure('WindowState','maximized','Name',obj.subject);
             [r, c] = size(M_woA);                               % Get the matrix size
             imagesc((1:c)+0.5, (1:r)+0.5, M_woA);               % Plot the image
             hold on;
@@ -417,7 +350,7 @@ classdef BaseRaw < handle
         function r = create_times(obj)
             time_step = 1/obj.fs;
             endpoint = length(obj.data)/obj.fs;
-            r = [time_step:time_step:endpoint];
+            r = time_step:time_step:endpoint;
         end
 
         function r = apply_for_signal(obj, func, channel_wise)
