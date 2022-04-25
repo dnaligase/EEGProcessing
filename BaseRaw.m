@@ -1,17 +1,17 @@
 classdef BaseRaw < handle
     properties
-        data
-        subject
-        times
-        psd
-        freq
-        raw
-        no_chan
-        DSA
+        data                            % Conatins current EEG signal
+        subject                         % Subject Name
+        times                           % 
+        psd                             % Power Spectrum for the full EEG signal/"data"
+        freq                            % Frequency vector
+        no_chan                         % Number of channels currently selected
+        DSA                             % Density Spectral Array 
     end
     properties (SetAccess = private)
-        fs
-        chanlocs
+        fs                              % Sampling Frequency
+        chanlocs                        % Channel locations
+        raw                             % Contains raw EEG, won't be changed 
     end
     properties (Hidden = true)
         time_as_index
@@ -25,10 +25,10 @@ classdef BaseRaw < handle
                 picks = (1: size(EEG.data, 1))
             end
 
-            if nargin >= 1
+            if nargin >= 1                              
                 obj.data = EEG.data(picks, :);          % Rows = channels
-                obj.raw = EEG.data(picks, :);
-                obj.fs = EEG.srate;
+                obj.raw = EEG.data(picks, :);           % Stores original data
+                obj.fs = EEG.srate;                     % 
                 obj.no_chan = size(obj.data,1);
 
                 if  ~isfield(EEG, 'subject') || isempty(EEG.subject)
