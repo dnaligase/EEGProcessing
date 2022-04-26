@@ -20,6 +20,9 @@ classdef BaseRaw < handle
 %% Methods for Basic EEG Processing and Visualization
     methods
         function obj = BaseRaw(EEG, picks)
+            % Create the base object and add some information about the input EEG object
+            % EEG.data and EEG.srate need to be supplied by the user
+            % Channels for analysis can be specified in the picks argument
             arguments
                 EEG
                 picks = (1: size(EEG.data, 1))
@@ -28,7 +31,7 @@ classdef BaseRaw < handle
             if nargin >= 1                              
                 obj.data = EEG.data(picks, :);          % Rows = channels
                 obj.raw = EEG.data(picks, :);           % Stores original data
-                obj.fs = EEG.srate;                     % 
+                obj.fs = EEG.srate;                     
                 obj.no_chan = size(obj.data,1);
 
                 if  ~isfield(EEG, 'subject') || isempty(EEG.subject)
@@ -71,7 +74,7 @@ classdef BaseRaw < handle
         end
 
         function crop(obj, start, stop)
-            % Crop at specific index
+            % Crop the EEG signal at a specific index
             arguments
                 obj
                 start {mustBeGreaterThanOrEqual(start, 1)}
@@ -83,12 +86,8 @@ classdef BaseRaw < handle
             obj.times = times_vec - min(times_vec);
         end
 
-        function r = sum_power(obj, l_freq, h_freq)
-            r = obj.sum_freq_band(obj.psd, l_freq, h_freq);
-        end
-
         function matrix_DSA = create_DSA(obj,time_window, noverlap)
-            %Creates DSA of Power Spectrum for window and noverlap
+            % Creates DSA of Power Spectrum for window and noverlap 
             rowsNo = fix((size(obj.data, 2) - obj.fs*time_window) / ...
                 (obj.fs*noverlap)) + 1;
             matrix_DSA = zeros(length(obj.freq), obj.no_chan,rowsNo);
@@ -341,6 +340,7 @@ classdef BaseRaw < handle
             zlabel('Z')
             if return_figure; r = gcf(); end
         end
+        
         function r = length(obj)
             r = length(obj.data);
         end
