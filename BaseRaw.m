@@ -19,6 +19,7 @@ classdef BaseRaw < handle
     end
 %% Methods for Basic EEG Processing and Visualization
     methods
+        % Constructor function, initializes the object 
         function obj = BaseRaw(EEG, picks)
             % Create the base object and add some information about the input EEG object
             % EEG.data and EEG.srate need to be supplied by the user
@@ -59,7 +60,8 @@ classdef BaseRaw < handle
             end
 
         end
-
+        
+        %% Basic Low and Highpass Filter, EEG Cropping
         function filterEEG(obj,hi,lo)
             % Apply Basic High and Low Pass filter
             % Filter works on columns
@@ -72,7 +74,8 @@ classdef BaseRaw < handle
                 obj.data = hifi(obj.raw', 1e6/obj.fs, hi)';
             end
         end
-
+        
+        
         function crop(obj, start, stop)
             % Crop the EEG signal at a specific index
             arguments
@@ -85,7 +88,9 @@ classdef BaseRaw < handle
             times_vec = obj.times(:, start:stop);
             obj.times = times_vec - min(times_vec);
         end
-
+        
+        %% EEG Processing
+        % Create DSA matrix
         function matrix_DSA = create_DSA(obj,time_window, noverlap)
             % Creates DSA of Power Spectrum for window and noverlap 
             rowsNo = fix((size(obj.data, 2) - obj.fs*time_window) / ...
@@ -98,9 +103,11 @@ classdef BaseRaw < handle
                 [powers] = obj.power_segment((begin:stop));
                 matrix_DSA(:,:,cnt) = powers;
                 cnt = cnt+1;
-            end             
+            end    
+            obj.DSA = matrix_DSA;
         end
-
+        
+        % Extracts Power in a specific frequency range for a specific window and overlap
         function [r, meta] = windowedPower(obj,  time_window, noverlap, ...
                 lfreq, hfreq, verbose)
             % calculate powers in a windowed fashion
@@ -121,10 +128,10 @@ classdef BaseRaw < handle
                 disp(meta);
             end
         end
-
+        
+        % Calculates PSD for a defined segment with artifacts
         function [psd_window] = power_segment(obj, segment)
             transposed = obj.data';
-            % segment in datapoints as ``double``
             art_mat = abs(transposed(segment,:)) > 100;
             art_vec = ~any(art_mat);
             no_rows = size(obj.psd,1);
@@ -134,7 +141,7 @@ classdef BaseRaw < handle
                     [],[],256,obj.fs);
             end
         end
-
+        % Sum power within a defines frequency range
         function datavec = sum_freq_band(obj, psd, l_freq, h_freq)
             assert(size(psd, 1) == size(obj.freq, 1), "psd and freqs dims don't match!")
 
@@ -146,7 +153,8 @@ classdef BaseRaw < handle
                 datavec = squeeze(datavec)';
             end
         end
-
+        %% Plotting 
+        % Single Channgel DSA and Raw EEG 
         function plt = plot_single_channel(obj,ch,time_window, noverlap,xax)
             % Plot single channel DSA and Raw EEG 
             % To Do: 
@@ -158,7 +166,9 @@ classdef BaseRaw < handle
             end
             sgtitle(ch_name,'FontName','Arial','FontSize',12,'FontWeight','Bold')
             % Calculate DSA
+            if isempty(obj.DSA)
             matrix_DSA = create_DSA(obj,time_window, noverlap);
+            end
             subplot(2,1,1)
             pcolor(xax,obj.freq,10*log10(squeeze(matrix_DSA(:,ch,:))))
             shading flat
@@ -189,7 +199,7 @@ classdef BaseRaw < handle
             end
             plt = figure('WindowState','maximized','Name',obj.subject);
             % Calculate DSA
-            if isempty(matrix_DSA)
+            if isempty(matrix_DSA) && isempty(obj.DSA)
             matrix_DSA = create_DSA(obj,time_window, noverlap);
             end
             tg = uitabgroup(plt); % tabgroup
@@ -228,14 +238,17 @@ classdef BaseRaw < handle
             if isempty(xax)
                 xax = 0:noverlap:size(obj.data,2)/obj.fs-time_window;
             end
-            if isempty(matrix_DSA)
+
+            if isempty(matrix_DSA) 
             matrix_DSA = create_DSA(obj,time_window, noverlap);
             end
+
             plt = figure('WindowState','maximized','Name',obj.subject);
-            l = obj.sum_freq_band(matrix_DSA, 1, 6.99);
-            a = obj.sum_freq_band(matrix_DSA, 7, 12.99);
-            b = obj.sum_freq_band(matrix_DSA, 13, 29.99);
-            g = obj.sum_freq_band(matrix_DSA, 30, 46);
+            bands(:,:,1) = obj.sum_freq_band(matrix_DSA, 1, 6.99);
+            bands(:,:,2) = obj.sum_freq_band(matrix_DSA, 7, 12.99);
+            bands(:,:,3) = obj.sum_freq_band(matrix_DSA, 13, 29.99);
+            bands(:,:,4) = obj.sum_freq_band(matrix_DSA, 30, 46);
+            names = {'Low Frequency', 'Alpha Band', 'Beta Band', 'High Frequency'};
             % Create 4 plots with bandpower over time
             tg = uitabgroup(plt); % tabgroup
             sz = 5;
@@ -244,22 +257,12 @@ classdef BaseRaw < handle
                 thistab = uitab(tg,"Title",ch_name); % build iith tab
                 axes('Parent',thistab); % somewhere to plot
                 sgtitle(ch_name,'FontName','Arial','FontSize',12,'FontWeight','Bold')
-                ax(1) = subplot(2,2,1);
-                scatter(xax,l(:,i),sz,'filled')
+                for j = 1:size(bands,3)
+                ax(j) = subplot(2,2,j);
+                scatter(xax,bands(:,i,j),sz,'filled')
                 ylabel('Power')
-                title('Low Frequency Band')
-                ax(2) = subplot(2,2,2);
-                scatter(xax,a(:,i),sz,'filled')
-                ylabel('Power')
-                title('Alpha Band')
-                ax(3) = subplot(2,2,3);
-                scatter(xax,b(:,i),sz,'filled')
-                ylabel('Power')
-                title('Beta Band')
-                ax(4) = subplot(2,2,4);
-                scatter(xax,g(:,i),sz,'filled')
-                ylabel('Power')
-                title('Gamma Band')
+                title(names{1,j})
+                end
                 set(ax,'FontName','Arial','FontSize',12,'FontWeight','Bold', 'LineWidth', 1)
                 box(ax,'off')
                 xlim(ax,[xax(1),xax(end)])
@@ -292,6 +295,7 @@ classdef BaseRaw < handle
             [r, c] = size(M_woA);                               % Get the matrix size
             imagesc((1:c)+0.5, (1:r)+0.5, M_woA);               % Plot the image
             hold on;
+            scrollplot
             colormap(gray); % Use a gray colormap
             xlabel('Number of Epoch')
             axis equal
@@ -302,11 +306,11 @@ classdef BaseRaw < handle
             set(gca,'XTick', 1:2:c, 'YTick', 1:r, ...        % Change axes properties
                 'YTickLabel', locs,...
                 'XLim', [1 c+1], 'YLim', [1 r+1], ...
-                'GridLineStyle', '-', 'XGrid', 'on', 'YGrid', 'on','FontSize',6);
+                'GridLineStyle', '-', 'XGrid', 'on', 'YGrid', 'on','FontSize',5);
+
             hold off
         end
 
-        % Test over
         function r = apply_function(obj, func, channel_wise, inplace)
             arguments
                 obj
