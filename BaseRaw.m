@@ -64,9 +64,9 @@ classdef BaseRaw < handle
         %% Basic Low and Highpass Filter, EEG Cropping
         function filterEEG(obj,hi,lo)
             % Apply Basic High and Low Pass filter
-            % Filter works on columns
+            % Filter works on columns (--> Channels as cols, rows as timeseries)
             if ~isempty(hi) && ~isempty(lo)
-                obj.data = hifi(obj.raw', 1e6/obj.fs, hi)';
+                obj.data = hifi(obj.raw', 1e6/obj.fs, hi)';         
                 obj.data = lofi(obj.data', 1e6/obj.fs, lo)';
             elseif ~isempty(lo)
                 obj.data = lofi(obj.raw', 1e6/obj.fs, lo)';
@@ -87,6 +87,12 @@ classdef BaseRaw < handle
             obj.data = obj.data(:, start:stop);
             times_vec = obj.times(:, start:stop);
             obj.times = times_vec - min(times_vec);
+        end
+
+        function reset_rawdata(obj)
+            obj.data = obj.raw;
+            obj.DSA = [];
+            obj.times = obj.create_times();
         end
         
         %% EEG Processing
@@ -155,33 +161,22 @@ classdef BaseRaw < handle
         end
         %% Plotting 
         % Single Channgel DSA and Raw EEG 
-        function plt = plot_single_channel(obj,ch,time_window, noverlap,xax)
+        function ax = plot_single_channel(obj,ch,time_window, noverlap,xax)
             % Plot single channel DSA and Raw EEG 
             % To Do: 
             % check time_vector and position of the colorbar
-            plt = figure('WindowState','maximized','Name',obj.subject);
-            ch_name = obj.chanlocs(ch).labels;
             if isempty(xax)
                 xax = 0:noverlap:size(obj.data,2)/obj.fs-time_window;
             end
+            figure('WindowState','maximized','Name',obj.subject);
+            ch_name = obj.chanlocs(ch).labels;
             sgtitle(ch_name,'FontName','Arial','FontSize',12,'FontWeight','Bold')
             % Calculate DSA
-            if isempty(obj.DSA)
-            matrix_DSA = create_DSA(obj,time_window, noverlap);
-            end
-            subplot(2,1,1)
-            pcolor(xax,obj.freq,10*log10(squeeze(matrix_DSA(:,ch,:))))
-            shading flat
-            shading interp
-            colormap turbo
-            colorbar
-            caxis([-20 20])
-            ylim([0 47])
-            xlim([xax(1),xax(end)])
-            ylabel('Frequency [Hz]')
-            set(gca,'FontName','Arial','FontSize',12,'FontWeight','Bold', 'LineWidth', 1)
-            box(gca,'off')
-            subplot(2,1,2)
+            create_DSA(obj,time_window, noverlap);
+            ax(1) = subplot(2,1,1);
+            plot_data = squeeze(obj.DSA(:,ch,:));
+            ax(1) = obj.plot_DSA(ax(1),plot_data,obj.freq,xax);
+            ax(2) = subplot(2,1,2);
             plot(obj.times,obj.data(ch,:))
             ylabel('Amplitude [mV]')
             xlabel('Time [s]')
@@ -199,8 +194,8 @@ classdef BaseRaw < handle
             end
             plt = figure('WindowState','maximized','Name',obj.subject);
             % Calculate DSA
-            if isempty(matrix_DSA) && isempty(obj.DSA)
-            matrix_DSA = create_DSA(obj,time_window, noverlap);
+            if isempty(matrix_DSA)
+            matrix_DSA = obj.create_DSA(time_window, noverlap);
             end
             tg = uitabgroup(plt); % tabgroup
             for i = 1:obj.no_chan
@@ -208,18 +203,9 @@ classdef BaseRaw < handle
                 thistab = uitab(tg,"Title",ch_name); % build iith tab
                 axes('Parent',thistab); % somewhere to plot
                 sgtitle(ch_name,'FontName','Arial','FontSize',12,'FontWeight','Bold')
-                subplot(2,1,1)
-                pcolor(xax,obj.freq,10*log10(squeeze(matrix_DSA(:,i,:))))
-                shading flat
-                shading interp
-                colormap turbo
-                colorbar
-                caxis([-20 20])
-                ylim([0 47])
-                xlim([xax(1),xax(end)])
-                ylabel('Frequency [Hz]')
-                set(gca,'FontName','Arial','FontSize',12,'FontWeight','Bold', 'LineWidth', 1)
-                box(gca,'off')
+                ax(1) = subplot(2,1,1);
+                plot_data = squeeze(matrix_DSA(:,i,:));
+                ax(1) = obj.plot_DSA(ax(1),plot_data,obj.freq,xax);
                 subplot(2,1,2)
                 plot(obj.times,obj.data(i,:))
                 ylabel('Amplitude [mV]')
@@ -349,13 +335,33 @@ classdef BaseRaw < handle
             r = length(obj.data);
         end
     end
+    methods(Static)
 
+        function axis = plot_DSA(axis,DSA_mat,freq,xax)
+            if isempty(xax)
+            xax = 1:size(DSA_mat,2);
+            end
+            pcolor(gca,xax,freq,10*log10(DSA_mat));
+            shading flat
+            shading interp
+            colormap turbo
+            colorbar
+            caxis(gca,[-15 20])
+            ylim(gca,[0 47])
+            xlim(gca,[xax(1),xax(end)])
+            ylabel('Frequency [Hz]')
+            set(gca,'FontName','Arial','FontSize',12,'FontWeight','Bold', 'LineWidth', 1)
+            box(gca,'off')
+        end
+
+    end
     methods (Access = protected)
         function r = create_times(obj)
             time_step = 1/obj.fs;
             endpoint = length(obj.data)/obj.fs;
             r = time_step:time_step:endpoint;
         end
+
 
         function r = apply_for_signal(obj, func, channel_wise)
 
