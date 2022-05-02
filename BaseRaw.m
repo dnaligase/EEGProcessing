@@ -226,7 +226,7 @@ classdef BaseRaw < handle
             end
 
             if isempty(matrix_DSA) 
-            matrix_DSA = create_DSA(obj,time_window, noverlap);
+            matrix_DSA = obj.create_DSA(obj,time_window, noverlap);
             end
 
             plt = figure('WindowState','maximized','Name',obj.subject);
@@ -253,6 +253,40 @@ classdef BaseRaw < handle
                 box(ax,'off')
                 xlim(ax,[xax(1),xax(end)])
             end            
+        end
+
+        function plot_mult_DSA(obj,DSA_mat,freq,window,shift,xax)
+            arguments 
+                obj
+                DSA_mat
+                freq 
+                window = 2
+                shift = 1
+                xax = 1
+            end
+            if isempty(DSA_mat)
+                DSA_mat = obj.create_DSA(window,shift);
+            end
+            if isempty(xax)
+                xax = 1:size(DSA_mat,3);
+            end
+            plt = figure('WindowState','maximized');
+            tg = uitabgroup(plt);
+            num_rows = 4;num_cols = 2; 
+            ch=1;
+            for num_tab = 1:size(DSA_mat,2)/(num_rows*num_cols)
+                tab = uitab(tg,'Title',strcat('Channel #',num2str(ch),'-',num2str(ch+num_rows*num_cols-1)));
+                axes('Parent',tab);
+                for pos = 1:num_rows*num_cols
+                    ch_name = obj.chanlocs(ch).labels;
+                    ax(pos) = subplot(num_rows,num_cols,pos);
+                    plot_data = squeeze(DSA_mat(:,ch,:));
+                    ax(pos) = obj.plot_DSA(gca,plot_data,freq,xax);
+                    title(ch_name)
+                    set(gca,'FontName','Arial','FontSize',6,'FontWeight','Bold', 'LineWidth', 1)
+                    ch = ch + 1;
+                end
+            end
         end
 
         function fig = plot_artefact_matrix(obj,time_window, threshold)
@@ -334,6 +368,8 @@ classdef BaseRaw < handle
         function r = length(obj)
             r = length(obj.data);
         end
+
+        
     end
     methods(Static)
 
@@ -353,6 +389,8 @@ classdef BaseRaw < handle
             set(gca,'FontName','Arial','FontSize',12,'FontWeight','Bold', 'LineWidth', 1)
             box(gca,'off')
         end
+
+          
 
     end
     methods (Access = protected)
